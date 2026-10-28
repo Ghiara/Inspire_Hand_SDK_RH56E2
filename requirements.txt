@@ -1,0 +1,10 @@
+numpy==2.2.6
+scipy==1.15.3
+mujoco==3.3.7
+pymodbus==3.11.3
+trimesh==4.7.4
+xacro==2.1.1
+PyYAML==6.0.3
+imageio==2.37.0
+imageio-ffmpeg==0.6.0
+pytest==8.4.2
