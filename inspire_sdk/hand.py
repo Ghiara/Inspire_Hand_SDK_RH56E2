@@ -1,5 +1,6 @@
 """Public SDK facade with explicit simulation/hardware factories."""
 from .simulation import MujocoBackend
+from .general_control import GeneralController
 from .joint_pos_control import JointPositionController
 from .joint_velo_control import JointVelocityController
 from .force_control import ForceController
@@ -9,6 +10,7 @@ from .target_pos_control import TargetPositionController
 class InspireHand:
     def __init__(self, backend):
         self.backend = backend
+        self.general = GeneralController(backend)
         self.position = JointPositionController(backend)
         self.velocity = JointVelocityController(backend)
         self.force = ForceController(backend)
@@ -29,11 +31,23 @@ class InspireHand:
     def advance(self, duration_s):
         self.backend.advance(duration_s)
 
+    def _reset_controllers(self):
+        for controller in (self.position, self.velocity, self.force, self.cartesian):
+            controller._reset_control_state()
+
+    def open_hand(self, **kwargs):
+        """Move to six native 1000 values, waiting for measured arrival."""
+        self._reset_controllers()
+        return self.general.open_hand(**kwargs)
+
+    def return_to_zero(self, **kwargs):
+        """Bend five channels to native zero, keeping thumb_rotation open."""
+        self._reset_controllers()
+        return self.general.return_to_zero(**kwargs)
+
     def stop(self):
-        self.velocity.velocities_rad_s[:] = 0
-        self.velocity.reference_rad = None
-        self.force.reference_rad = None
-        self.backend.stop()
+        self._reset_controllers()
+        self.general.stop()
 
     def close(self):
         self.backend.close()

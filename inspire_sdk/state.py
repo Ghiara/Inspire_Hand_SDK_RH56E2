@@ -15,6 +15,8 @@ class HandState:
     velocity_source: str
     force_source: str
     error_codes: np.ndarray | None = None
+    raw_angles: np.ndarray | None = None
+    position_source: str = "unspecified"
 
     def to_dict(self):
         def convert(value):

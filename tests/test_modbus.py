@@ -77,6 +77,9 @@ def test_invalid_hardware_command_has_no_writes(hardware, values):
 def test_state_units_and_estimated_velocity(hardware):
     backend, client = hardware
     first = backend.read_state()
+    np.testing.assert_array_equal(first.raw_angles, [1000]*6)
+    assert first.position_source == "model_estimate_from_angle_feedback"
+    assert first.to_dict()["raw_angles"] == [1000]*6
     assert first.velocity_source == "unavailable_first_sample"
     assert first.contact_forces_n is None
     assert first.raw_forces[0] == -1
@@ -131,3 +134,37 @@ def test_side_device_id_and_stop():
     assert client.reads[0] == (1546, 6, 2)
     assert client.writes == [(1486, [1000]*6, 2)]
     assert client.closed
+
+
+def test_motion_diagnostics_are_read_only_and_decode_status(hardware, monkeypatch):
+    backend, client = hardware
+    original_read = client.read_holding_registers
+
+    def readback(**kwargs):
+        reply = original_read(**kwargs)
+        if kwargs["address"] == 1486:
+            reply.registers = [0, 0, 0, 0, 0, 1000]
+        elif kwargs["address"] == 1498:
+            reply.registers = [100] * 6
+        elif kwargs["address"] == 1522:
+            reply.registers = [100] * 6
+        elif kwargs["address"] == 1612:
+            reply.registers = [0x0303, 0x0303, 0x0202]
+        return reply
+
+    monkeypatch.setattr(client, "read_holding_registers", readback)
+    report = backend.read_motion_diagnostics()
+    assert report["angle_set"] == [0, 0, 0, 0, 0, 1000]
+    assert report["force_set"] == [100] * 6
+    assert report["status_codes"] == [3, 3, 3, 3, 2, 2]
+    assert report["read_only"] and not report["read_errors"]
+    assert not client.writes
+
+
+def test_unsupported_diagnostic_register_does_not_fabricate_values(hardware):
+    backend, client = hardware
+    client.error_response = True
+    report = backend.read_motion_diagnostics()
+    assert report["force_set"] is None
+    assert set(report["read_errors"]) == {"angle_set", "force_set", "speed_set", "status_codes"}
+    assert not client.writes

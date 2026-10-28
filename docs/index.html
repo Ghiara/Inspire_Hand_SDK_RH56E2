@@ -1,0 +1,2624 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Inspire RH56E2 Python SDK API：controller 接口、参数、返回值、异常与仿真 / Modbus TCP 后端。">
+  <meta name="color-scheme" content="light">
+  <title>RH56E2 SDK · API Reference</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer>
+</script>
+</head>
+<body>
+<a class="skip-link" href="#main">跳至文档内容</a>
+<header class="topbar">
+<a class="brand" href="#top">
+<span class="brand-mark" aria-hidden="true">✳</span> INSPIRE <span class="brand-divider">/</span> RH56E2 <span class="version">SDK</span>
+</a>
+<a href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2">GitHub <span aria-hidden="true">↗</span>
+</a>
+</header>
+<div class="layout" id="top">
+<aside class="sidebar" aria-label="文档导航">
+  <div class="sidebar-heading">API REFERENCE <span>PYTHON</span>
+</div>
+  <div class="search-box" hidden>
+<label for="api-search">搜索接口与参数</label>
+<input id="api-search" type="search" placeholder="例如 set_targets、tolerance…" autocomplete="off">
+<p id="search-status" role="status" aria-live="polite">
+</p>
+</div>
+  <nav aria-label="章节">
+<a href="#overview">
+<span class="nav-index">01</span>使用约定</a>
+<a href="#facade">
+<span class="nav-index">02</span>InspireHand</a>
+<a href="#general">
+<span class="nav-index">03</span>GeneralController</a>
+<a href="#position">
+<span class="nav-index">04</span>JointPositionController</a>
+<a href="#velocity">
+<span class="nav-index">05</span>JointVelocityController</a>
+<a href="#force">
+<span class="nav-index">06</span>ForceController</a>
+<a href="#cartesian">
+<span class="nav-index">07</span>TargetPositionController</a>
+<a href="#state">
+<span class="nav-index">08</span>HandState 与 IKResult</a>
+<a href="#simulation">
+<span class="nav-index">09</span>MujocoBackend</a>
+<a href="#modbus">
+<span class="nav-index">10</span>ModbusTcpBackend</a>
+<a href="#model">
+<span class="nav-index">11</span>HandModel 与 Kinematics</a>
+<a href="#network">
+<span class="nav-index">12</span>网络配置 CLI</a>
+<a href="#examples">
+<span class="nav-index">13</span>常用组合</a>
+</nav>
+  <div class="sidebar-footer">Yuan Meng<br>
+<a href="https://www.cit.tum.de/en/cit/home/">TUM CIT</a> · Technical University of Munich<br>
+<span>与当前 SDK 实现对应</span>
+</div>
+</aside>
+<main id="main" tabindex="-1">
+  <div class="hero">
+<p class="eyebrow">INSPIRE HAND / DEVELOPER DOCUMENTATION</p>
+<h1>精确控制，<br>
+<span>从接口开始。</span>
+</h1>
+<p class="hero-description">RH56E2 灵巧手 SDK API 参考。<br>从控制器到反馈，逐项说明调用方式与实际行为。</p>
+<div class="tags">
+<span>6 主动自由度</span>
+<span>MuJoCo 仿真</span>
+<span>Modbus TCP</span>
+</div>
+<div class="hero-bottom">
+<span>Yuan Meng <span class="muted">/ TUM CIT</span>
+</span>
+<a href="#general">查看 Controller API ↓</a>
+</div>
+</div>
+  <div class="overview-grid">
+<a href="#position">
+<span class="tile-number">01</span>
+<strong>位置控制</strong>
+<span>主动轴与 mimic 关节</span>
+</a>
+<a href="#velocity">
+<span class="tile-number">02</span>
+<strong>速度控制</strong>
+<span>有符号位置积分</span>
+</a>
+<a href="#force">
+<span class="tile-number">03</span>
+<strong>力反馈</strong>
+<span>接触闭环与原生阈值</span>
+</a>
+<a href="#cartesian">
+<span class="tile-number">04</span>
+<strong>指尖目标</strong>
+<span>有界 FK / IK</span>
+</a>
+</div>
+  <p id="no-results" hidden>未找到匹配接口。请尝试方法名、参数名或控制器名称。</p>
+  <section class="api-section" id="overview" aria-labelledby="overview-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 01</p>
+<h2 id="overview-title">使用约定</h2>
+<p class="section-subtitle">先确认顺序、单位与执行周期，再选择控制器。</p>
+</div>
+<p>本文对应仓库当前 Python 实现，覆盖 SDK 的公共方法、构造参数、状态与返回对象。下划线开头的内部辅助方法不作为公共 API。四种模式 controller 均继承 GeneralController；同一个后端应由一个控制循环发布命令。</p>
+<article class="api-entry" id="coordinates">
+<h3>
+<a href="#coordinates">通道、单位与模型边界</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">下标</th>
+<th scope="col">通道</th>
+<th scope="col">主动关节</th>
+<th scope="col">位置范围 / rad</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>pinky</td>
+<td>pinky_joint</td>
+<td>0..1.4381</td>
+</tr>
+<tr>
+<td>1</td>
+<td>ring</td>
+<td>ring_joint</td>
+<td>0..1.4381</td>
+</tr>
+<tr>
+<td>2</td>
+<td>middle</td>
+<td>middle_joint</td>
+<td>0..1.4381</td>
+</tr>
+<tr>
+<td>3</td>
+<td>index</td>
+<td>index_joint</td>
+<td>0..1.4381</td>
+</tr>
+<tr>
+<td>4</td>
+<td>thumb_bend</td>
+<td>thumb_joint2</td>
+<td>0..0.5864</td>
+</tr>
+<tr>
+<td>5</td>
+<td>thumb_rotation</td>
+<td>thumb_joint1</td>
+<td>0..1.1641</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>上述为便于阅读的近似值；准确边界由 HandModel.lower / upper 从 URDF 与 mimic 约束计算。6 轴数组按 CHANNELS 排序，5 指数组按 FINGERS = (pinky, ring, middle, index, thumb) 排序。所有向量必须形状正确且值有限。</p>
+<p>位置使用 rad，带方向速度使用 rad/s，指尖 xyz 使用 m，固定坐标系为 hand_base。正速度朝关节角增大方向运动。模型 0 rad 是展开；设备角度 1000 是展开，0 是弯曲。12 个活动关节只有 6 个主动轴：四指 DIP 比例 1.0843，拇指 joint3 / joint4 相对 joint2 的比例为 0.8024 / 0.76123688。</p>
+<p>最大主动速度由主动与被动关节的限位共同决定：四指约 0.9223 rad/s，拇指两轴 1 rad/s。越界的用户输入会被拒绝；积分控制产生的内部参考在边界饱和。</p>
+</article>
+<article class="api-entry" id="control-loop">
+<h3>
+<a href="#control-loop">控制循环与模式切换</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">操作</th>
+<th scope="col">发布命令</th>
+<th scope="col">推进仿真 / 等待真机</th>
+<th scope="col">返回</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>position.set_targets / set_finger / set_joint</td>
+<td>是</td>
+<td>否</td>
+<td>六轴目标 ndarray</td>
+</tr>
+<tr>
+<td>cartesian.solve</td>
+<td>否</td>
+<td>否</td>
+<td>IKResult</td>
+</tr>
+<tr>
+<td>cartesian.set_targets</td>
+<td>求解成功后发布</td>
+<td>否</td>
+<td>IKResult</td>
+</tr>
+<tr>
+<td>velocity.set_targets</td>
+<td>否，仅设置速度与参考</td>
+<td>否</td>
+<td>六轴速度 ndarray</td>
+</tr>
+<tr>
+<td>velocity.update(dt)</td>
+<td>积分并发布一次</td>
+<td>否</td>
+<td>六轴位置参考 ndarray</td>
+</tr>
+<tr>
+<td>velocity.step(dt)</td>
+<td>积分并发布一次</td>
+<td>是</td>
+<td>None</td>
+</tr>
+<tr>
+<td>force.set_targets</td>
+<td>否，仅初始化反馈控制状态</td>
+<td>否</td>
+<td>None</td>
+</tr>
+<tr>
+<td>force.step(dt)</td>
+<td>闭环调整并发布一次</td>
+<td>是</td>
+<td>None</td>
+</tr>
+<tr>
+<td>advance(dt)</td>
+<td>不产生新的模式目标</td>
+<td>是</td>
+<td>None</td>
+</tr>
+<tr>
+<td>open_hand / return_to_zero / move_to_positions</td>
+<td>周期发布位置参考</td>
+<td>是，阻塞直到反馈到位</td>
+<td>HandState</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>不要在 step(dt) 后为同一个周期再调用 advance(dt)。仿真 advance 必须是 0.001 秒的正整数倍；真机 advance 只做 time.sleep，不驱动新的控制更新。切换模式前结束旧循环，再调用 hand.stop() 清除旧积分状态。stop() 为当前位置保持请求，不是断电急停；close() 只释放资源，不隐式调用 stop()。</p>
+</article>
+<article class="api-entry" id="quickstart">
+<h3>
+<a href="#quickstart">最小示例</a>
+</h3><pre><code>from inspire_sdk import InspireHand
+
+with InspireHand.simulation(side=&quot;left&quot;) as hand:
+    hand.position.set_finger(&quot;index&quot;, 0.5)
+    hand.advance(2.0)
+    print(hand.read_state().to_dict())
+
+    hand.stop()
+    hand.velocity.set_targets([0, 0, 0, 0.1, 0, 0])
+    for _ in range(100):
+        hand.velocity.step(0.01)
+    hand.stop()</code></pre></article>
+</section>
+<section class="api-section" id="facade" aria-labelledby="facade-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 02</p>
+<h2 id="facade-title">InspireHand</h2>
+<p class="section-subtitle">统一入口：工厂、控制器实例与资源管理。</p>
+</div><pre><code>from inspire_sdk import InspireHand</code></pre><p>属性 backend 为所选后端；general、position、velocity、force、cartesian 分别为绑定同一后端的五个 controller 实例。支持 with 上下文，退出时只调用 close()。</p>
+<article class="api-entry" id="InspireHand.__init__" data-api="InspireHand.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.__init__">InspireHand</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L11">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand(backend)</code></pre><p>将已有后端封装为 SDK 统一入口，不另行创建连接或推进物理。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backend</td>
+<td>MujocoBackend | ModbusTcpBackend</td>
+<td>必填</td>
+<td>或实现 description、kinematics、target_rad、set_positions、read_state、advance、stop、close 的兼容后端。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>InspireHand 实例；五个 controller 共享 backend。</p>
+<h4>异常</h4>
+<p>无额外异常；后端的 I/O 或运行时异常向调用方传播。</p>
+</article>
+<article class="api-entry" id="InspireHand.simulation" data-api="InspireHand.simulation">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.simulation">InspireHand.simulation</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L20">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.simulation(side=&#x27;right&#x27;, contact_fixture=False)</code></pre><p>类方法：创建力矩驱动的 MuJoCo 后端及统一接口。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>side</td>
+<td>str</td>
+<td>&#x27;right&#x27;</td>
+<td>left 或 right。</td>
+</tr>
+<tr>
+<td>contact_fixture</td>
+<td>bool</td>
+<td>False</td>
+<td>True 时在五指弯曲路径上添加固定接触球，用于力反馈实验。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>InspireHand，backend 为 MujocoBackend。</p>
+<h4>异常</h4>
+<p>ValueError：手别无效；FileNotFoundError：模型缺失；MuJoCo 模型加载错误。</p>
+</article>
+<article class="api-entry" id="InspireHand.modbus_tcp" data-api="InspireHand.modbus_tcp">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.modbus_tcp">InspireHand.modbus_tcp</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L24">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.modbus_tcp(host, **kwargs)</code></pre><p>类方法：显式连接 Modbus TCP 真机。连接及初始 ANGLE_ACT 读取不写入设备参数。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>host</td>
+<td>str</td>
+<td>必填</td>
+<td>设备当前地址，必填。</td>
+</tr>
+<tr>
+<td>kwargs</td>
+<td>关键字参数</td>
+<td>透传</td>
+<td>透传 ModbusTcpBackend：port=6000、device_id=None、side=&quot;right&quot;、timeout_s=1.0、registers=None、client=None，详见后端构造参数。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>InspireHand，backend 为 ModbusTcpBackend。</p>
+<h4>异常</h4>
+<p>ValueError：参数无效；ModbusError：连接失败、读取失败或反馈不合法；模型加载错误。</p><pre><code>with InspireHand.modbus_tcp(&quot;192.168.11.210&quot;, side=&quot;left&quot;, device_id=255) as hand:
+    print(hand.read_state().to_dict())</code></pre></article>
+<article class="api-entry" id="InspireHand.read_state" data-api="InspireHand.read_state">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.read_state">InspireHand.read_state</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L28">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.read_state()</code></pre><p>读取所选后端状态，不推进仿真，不发送运动命令。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>HandState。</p>
+<h4>异常</h4>
+<p>ValueError：时长不合法（advance）；RuntimeError / ModbusError：后端关闭、设备故障或通信失败。</p>
+</article>
+<article class="api-entry" id="InspireHand.advance" data-api="InspireHand.advance">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.advance">InspireHand.advance</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L31">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.advance(duration_s)</code></pre><p>将调用转交后端：仿真推进物理，真机休眠指定时间。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>正数。仿真须为 0.001 秒的整数倍；真机仅等待。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：时长不合法（advance）；RuntimeError / ModbusError：后端关闭、设备故障或通信失败。</p>
+</article>
+<article class="api-entry" id="InspireHand.open_hand" data-api="InspireHand.open_hand">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.open_hand">InspireHand.open_hand</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L38">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.open_hand(**kwargs)</code></pre><p>先清除所有模式 controller 的积分 / 反馈状态，再阻塞执行全手张开。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>kwargs</td>
+<td>关键字参数</td>
+<td>透传</td>
+<td>透传 GeneralController.move_to_positions() 的选项；return_to_zero 不允许覆盖 hold_channels。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>HandState。</p>
+<h4>异常</h4>
+<p>透传 GeneralController 对应方法的异常，见通用 controller。</p>
+</article>
+<article class="api-entry" id="InspireHand.return_to_zero" data-api="InspireHand.return_to_zero">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.return_to_zero">InspireHand.return_to_zero</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L43">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.return_to_zero(**kwargs)</code></pre><p>先清除所有模式 controller 的状态，再阻塞执行五路设备零、拇指旋转展开的姿态。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>kwargs</td>
+<td>关键字参数</td>
+<td>透传</td>
+<td>透传 GeneralController.move_to_positions() 的选项；return_to_zero 不允许覆盖 hold_channels。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>HandState。</p>
+<h4>异常</h4>
+<p>透传 GeneralController 对应方法的异常，见通用 controller。</p>
+</article>
+<article class="api-entry" id="InspireHand.stop" data-api="InspireHand.stop">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.stop">InspireHand.stop</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L48">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.stop()</code></pre><p>清除所有模式 controller 的状态，并请求后端保持测得的当前位置。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：时长不合法（advance）；RuntimeError / ModbusError：后端关闭、设备故障或通信失败。</p>
+</article>
+<article class="api-entry" id="InspireHand.close" data-api="InspireHand.close">
+<div class="entry-heading">
+<h3>
+<a href="#InspireHand.close">InspireHand.close</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/hand.py#L52">源码 ↗</a>
+</div><pre class="signature"><code>InspireHand.close()</code></pre><p>关闭后端资源。不会发送保持、张开或回零命令。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>底层资源关闭异常向上传播。</p>
+</article>
+</section>
+<section class="api-section" id="general" aria-labelledby="general-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 03</p>
+<h2 id="general-title">GeneralController</h2>
+<p class="section-subtitle">四种模式共同继承的读取、保持与到位等待逻辑。</p>
+</div><pre><code>from inspire_sdk import GeneralController, MotionCancelled, PoseTimeoutError</code></pre><p>继承关系：JointPositionController、JointVelocityController、ForceController、TargetPositionController → GeneralController。对某个 controller 调用 stop() 或姿态方法只重置该 controller 的状态；hand.stop() / hand.open_hand() / hand.return_to_zero() 会重置所有模式。</p>
+<article class="api-entry" id="GeneralController.__init__" data-api="GeneralController.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.__init__">GeneralController</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L33">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController(backend)</code></pre><p>绑定已有后端，不自动读取状态或发送命令。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backend</td>
+<td>后端实例</td>
+<td>必填</td>
+<td>由调用方负责资源生命周期。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>GeneralController 实例。</p>
+<h4>异常</h4>
+<p>无额外异常；后端的 I/O 或运行时异常向调用方传播。</p>
+</article>
+<article class="api-entry" id="GeneralController.read_state" data-api="GeneralController.read_state">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.read_state">GeneralController.read_state</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L36">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController.read_state()</code></pre><p>转发后端状态读取。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>HandState，字段定义见状态部分。</p>
+<h4>异常</h4>
+<p>RuntimeError / ModbusError：后端不可用或通信失败；ValueError：设备角度不在 0..1000。</p>
+</article>
+<article class="api-entry" id="GeneralController.advance" data-api="GeneralController.advance">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.advance">GeneralController.advance</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L39">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController.advance(duration_s)</code></pre><p>转发后端的时间推进 / 等待。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>有限正数；仿真必须为模型步长 0.001 秒的整数倍。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：时间无效；RuntimeError / ModbusError：后端已关闭。</p>
+</article>
+<article class="api-entry" id="GeneralController.stop" data-api="GeneralController.stop">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.stop">GeneralController.stop</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L45">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController.stop()</code></pre><p>清除被调用 controller 的旧模式状态，调用 backend.stop() 请求保持当前位置。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>RuntimeError / ModbusError：后端关闭、设备故障或通信失败。</p>
+<h4>执行细节</h4>
+<p>速度清零且参考置空；力目标、使能、滤波与积分参考清空。位置与 Cartesian controller 没有额外模式状态。</p>
+</article>
+<article class="api-entry" id="GeneralController.open_hand" data-api="GeneralController.open_hand">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.open_hand">GeneralController.open_hand</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L55">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController.open_hand(**kwargs)</code></pre><p>将设备语义的 [1000, 1000, 1000, 1000, 1000, 1000] 转成模型角度后，调用 move_to_positions() 阻塞等待到位。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>kwargs</td>
+<td>关键字参数</td>
+<td>透传</td>
+<td>完整透传 move_to_positions()：rate_rad_s、period_s、timeout_s、tolerance_rad、settle_samples、tolerance_units、on_state、on_progress、cancelled、hold_channels。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>HandState：最后一次已到位的反馈。</p>
+<h4>异常</h4>
+<p>与 move_to_positions() 相同。</p>
+<h4>执行细节</h4>
+<p>不会执行设备校准或机械找零。模型展开目标是六轴 lower（当前模型为六个 0 rad）。</p>
+</article>
+<article class="api-entry" id="GeneralController.return_to_zero" data-api="GeneralController.return_to_zero">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.return_to_zero">GeneralController.return_to_zero</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L63">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController.return_to_zero(**kwargs)</code></pre><p>将设备语义的 [0, 0, 0, 0, 0, 1000] 转为模型角度并等待到位。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>kwargs</td>
+<td>关键字参数</td>
+<td>透传</td>
+<td>同 move_to_positions() 的可选参数，但禁止传 hold_channels。timeout_s 约束整个回零流程，包含可能的拇指旋转预恢复阶段。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>HandState：最终姿态反馈。</p>
+<h4>异常</h4>
+<p>ValueError：覆盖 hold_channels 或其他参数无效；TimeoutError / PoseTimeoutError：超时；MotionCancelled：取消；设备异常向上传播。</p>
+<h4>执行细节</h4>
+<p>若拇指旋转还未展开，先保持另外五轴测量姿态、单独恢复旋转，再将该轴从第一条闭合命令起锁在展开目标，移动另外五轴。这里的设备“零”不是六轴模型 0 rad。</p>
+</article>
+<article class="api-entry" id="GeneralController.move_to_positions" data-api="GeneralController.move_to_positions">
+<div class="entry-heading">
+<h3>
+<a href="#GeneralController.move_to_positions">GeneralController.move_to_positions</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/general_control.py#L158">源码 ↗</a>
+</div><pre class="signature"><code>GeneralController.move_to_positions(positions_rad, *, rate_rad_s=0.2, period_s=0.05, timeout_s=30.0, tolerance_rad=0.01, settle_samples=3, tolerance_units=20.0, on_state=None, on_progress=None, cancelled=None, hold_channels=())</code></pre><p>按每周期最大 rate_rad_s × period_s 插补六轴参考，最终参考发出且所有轴连续到位后返回。等待的是反馈到位，而非写应答。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>六轴目标，须在有效机械边界内。</td>
+</tr>
+<tr>
+<td>rate_rad_s</td>
+<td>float / rad/s</td>
+<td>0.2</td>
+<td>有限正数，每轴参考最大变化率；不能超过任何轴的 URDF 速度上限。</td>
+</tr>
+<tr>
+<td>period_s</td>
+<td>float / s</td>
+<td>0.05</td>
+<td>有限正数；仿真须为物理步长的整数倍。</td>
+</tr>
+<tr>
+<td>timeout_s</td>
+<td>float / s</td>
+<td>30.0</td>
+<td>整个单次移动的墙钟超时，有限正数。</td>
+</tr>
+<tr>
+<td>tolerance_rad</td>
+<td>float / rad</td>
+<td>0.01</td>
+<td>有限正数，仅仿真模型反馈比较使用。</td>
+</tr>
+<tr>
+<td>settle_samples</td>
+<td>int</td>
+<td>3</td>
+<td>连续到位样本数，必须为正整数，不能是 bool。</td>
+</tr>
+<tr>
+<td>tolerance_units</td>
+<td>float / 设备单位</td>
+<td>20.0</td>
+<td>真机 ANGLE_ACT 原始值容差，范围 (0, 1000]；SDK 范围与 demo CLI 的 1..50 不同。</td>
+</tr>
+<tr>
+<td>on_state</td>
+<td>callable | None</td>
+<td>None</td>
+<td>on_state(state: HandState, reference: ndarray(6,))；在 on_progress 之后调用，reference 为副本。返回值忽略。</td>
+</tr>
+<tr>
+<td>on_progress</td>
+<td>callable | None</td>
+<td>None</td>
+<td>on_progress(diagnostics: dict)；每周期读取反馈后调用，字段见下表。返回值忽略。</td>
+</tr>
+<tr>
+<td>cancelled</td>
+<td>callable | None</td>
+<td>None</td>
+<td>无参回调，返回真值时中止；在初次读取前、周期写入前及回调后检查。</td>
+</tr>
+<tr>
+<td>hold_channels</td>
+<td>collection[str]</td>
+<td>()</td>
+<td>从第一条命令起固定为目标的主动通道。初始反馈必须已在容差内；不能传单个字符串。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>HandState：满足连续到位条件的最终采样。</p>
+<h4>异常</h4>
+<p>ValueError：向量 / 边界 / 速度 / 时长 / 容差 / 保持通道不合法；RuntimeError：设备反馈有故障或 ANGLE_ACT 丢失；MotionCancelled：取消；PoseTimeoutError：等待超时；后端异常或回调异常原样传播。</p>
+<h4>执行细节</h4>
+<p>开始时重置本 controller 状态，以测量姿态裁剪到机械边界作为插补初值。慢 I/O 不会导致补偿性的大步跳变。真机直接比较 raw_angles 与映射后的原始目标，仿真比较 positions_rad。最终参考未发出时不累计到位。写入尝试之后发生异常或中断，会尽力保持当前位置并重新抛出原异常；保持本身仍可能失败。</p><pre><code>state = hand.general.move_to_positions([0, 0, 0, 0.3, 0, 0], rate_rad_s=0.1, timeout_s=15)</code></pre></article>
+<article class="api-entry" id="pose-diagnostics">
+<h3>
+<a href="#pose-diagnostics">on_progress 字典与运动异常</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">字段</th>
+<th scope="col">内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>source / units</td>
+<td>真机 ANGLE_ACT / native_units；仿真 model_joint_feedback / rad。</td>
+</tr>
+<tr>
+<td>target / actual / absolute_error</td>
+<td>对应比较单位的六轴目标、反馈与绝对误差列表。</td>
+</tr>
+<tr>
+<td>tolerance / blocking_channels</td>
+<td>本次容差 / 仍超过容差的通道名列表。</td>
+</tr>
+<tr>
+<td>final_reference_sent</td>
+<td>当前插补参考转为比较单位后是否等于最终目标。</td>
+</tr>
+<tr>
+<td>settled_samples / required_samples</td>
+<td>当前连续到位次数 / 要求次数。</td>
+</tr>
+<tr>
+<td>held_channels</td>
+<td>本次固定的通道名列表。</td>
+</tr>
+<tr>
+<td>raw_forces / peak_raw_forces</td>
+<td>六路原始力值 / 截至当前各通道的最大采样值；仿真为 None；不是 N。</td>
+</tr>
+<tr>
+<td>commanded_force_limits</td>
+<td>本后端最近设置的设备力阈值，或 None。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>MotionCancelled 继承 RuntimeError。PoseTimeoutError 继承 TimeoutError；feedback 为超时前最近一次比较字典的副本，diagnostics 保存保持命令之前尽力采集的反馈、原始峰值、错误码及设备寄存器快照（或读取错误）。这些诊断不证明机械到位。</p>
+</article>
+</section>
+<section class="api-section" id="position" aria-labelledby="position-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 04</p>
+<h2 id="position-title">JointPositionController</h2>
+<p class="section-subtitle">直接发布六轴目标，或通过通道名 / 联动关节名设置位置。</p>
+</div><pre><code>from inspire_sdk import JointPositionController
+controller = JointPositionController(backend)</code></pre><p>构造函数继承 GeneralController(backend)，另继承 read_state、advance、stop、open_hand、return_to_zero、move_to_positions。位置命令只发布目标，不阻塞到位。</p>
+<article class="api-entry" id="JointPositionController.set_targets" data-api="JointPositionController.set_targets">
+<div class="entry-heading">
+<h3>
+<a href="#JointPositionController.set_targets">JointPositionController.set_targets</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_pos_control.py#L8">源码 ↗</a>
+</div><pre class="signature"><code>JointPositionController.set_targets(positions_rad)</code></pre><p>校验并发布完整六轴位置目标。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>顺序为 CHANNELS，必须处于模型有效边界内。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)：校验后的六轴目标。</p>
+<h4>异常</h4>
+<p>ValueError：形状、非有限数值或机械越界；后端异常向上传播。</p>
+</article>
+<article class="api-entry" id="JointPositionController.set_finger" data-api="JointPositionController.set_finger">
+<div class="entry-heading">
+<h3>
+<a href="#JointPositionController.set_finger">JointPositionController.set_finger</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_pos_control.py#L13">源码 ↗</a>
+</div><pre class="signature"><code>JointPositionController.set_finger(channel, position_rad)</code></pre><p>只修改一个主动通道，其余轴保持上一条命令的目标，而不是当前测量值。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>channel</td>
+<td>str</td>
+<td>必填</td>
+<td>CHANNELS 中的一个名字；拇指应使用 thumb_bend 或 thumb_rotation，不能用 thumb。</td>
+</tr>
+<tr>
+<td>position_rad</td>
+<td>float / rad</td>
+<td>必填</td>
+<td>所选主动轴目标，须为有限数且在有效边界内。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)：最终发布的完整目标。</p>
+<h4>异常</h4>
+<p>ValueError：通道无效或目标不合法；后端异常向上传播。</p>
+</article>
+<article class="api-entry" id="JointPositionController.set_joint" data-api="JointPositionController.set_joint">
+<div class="entry-heading">
+<h3>
+<a href="#JointPositionController.set_joint">JointPositionController.set_joint</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_pos_control.py#L21">源码 ↗</a>
+</div><pre class="signature"><code>JointPositionController.set_joint(joint_name, position_rad)</code></pre><p>根据 URDF 活动关节名设置目标；被动关节会反算到主动轴并带动整组 mimic 关节。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>joint_name</td>
+<td>str</td>
+<td>必填</td>
+<td>HandModel.joints 中的关节名，如 index_joint、index_dip、thumb_joint3。</td>
+</tr>
+<tr>
+<td>position_rad</td>
+<td>float / rad</td>
+<td>必填</td>
+<td>该关节的角度；既要满足自身限位，也要满足反算后的主动轴有效限位。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)：转换后完整主动轴目标。</p>
+<h4>异常</h4>
+<p>ValueError：关节未知、数值无效、关节或主动轴越界；后端异常向上传播。</p>
+<h4>执行细节</h4>
+<p>反算公式为 active = (passive - offset) / multiplier。不能将被动关节当作独立电机控制。</p>
+</article>
+</section>
+<section class="api-section" id="velocity" aria-labelledby="velocity-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 05</p>
+<h2 id="velocity-title">JointVelocityController</h2>
+<p class="section-subtitle">有符号速度通过周期软件位置积分实现。</p>
+</div>
+<p>继承 GeneralController 的六个公共方法。属性 velocities_rad_s 初始为六个 0，reference_rad 初始为 None。硬件 SPEED_SET 是原生限速，不是带方向的速度伺服。</p>
+<article class="api-entry" id="JointVelocityController.__init__" data-api="JointVelocityController.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#JointVelocityController.__init__">JointVelocityController</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_velo_control.py#L12">源码 ↗</a>
+</div><pre class="signature"><code>JointVelocityController(backend)</code></pre><p>绑定后端并初始化速度积分状态，不发送命令。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backend</td>
+<td>后端实例</td>
+<td>必填</td>
+<td>仿真与 Modbus 均使用同一积分实现。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>JointVelocityController 实例。</p>
+<h4>异常</h4>
+<p>无额外异常；后端的 I/O 或运行时异常向调用方传播。</p>
+</article>
+<article class="api-entry" id="JointVelocityController.set_targets" data-api="JointVelocityController.set_targets">
+<div class="entry-heading">
+<h3>
+<a href="#JointVelocityController.set_targets">JointVelocityController.set_targets</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_velo_control.py#L17">源码 ↗</a>
+</div><pre class="signature"><code>JointVelocityController.set_targets(velocities_rad_s, *, reset_reference=True)</code></pre><p>校验并保存六轴带符号速度；需要时从当前测量姿态重新建立积分参考，不发布运动目标。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>velocities_rad_s</td>
+<td>array-like (6,) / rad/s</td>
+<td>必填</td>
+<td>正负号控制方向，每轴绝对值不得超过模型 max_velocity。</td>
+</tr>
+<tr>
+<td>reset_reference</td>
+<td>bool</td>
+<td>True</td>
+<td>True 时以当前测量位置裁剪后作为参考；False 时保留已有参考，首次调用仍需读取状态。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)：速度向量的副本。</p>
+<h4>异常</h4>
+<p>ValueError：速度不合法；需要采样时的后端异常向上传播。</p>
+</article>
+<article class="api-entry" id="JointVelocityController.update" data-api="JointVelocityController.update">
+<div class="entry-heading">
+<h3>
+<a href="#JointVelocityController.update">JointVelocityController.update</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_velo_control.py#L27">源码 ↗</a>
+</div><pre class="signature"><code>JointVelocityController.update(duration_s)</code></pre><p>对 reference + velocity × duration_s 积分、裁剪到机械边界并发布一次位置命令。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>有限正数。外部调度时使用受限周期，避免长延迟后大幅补偿。此方法本身不要求 MuJoCo 步长整数倍。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)：已发布参考的副本。</p>
+<h4>异常</h4>
+<p>ValueError：周期无效；RuntimeError：未先调用 set_targets()；后端异常向上传播。</p>
+<h4>执行细节</h4>
+<p>不休眠、不推进物理。适合由外部定时器独立调度的循环。</p>
+</article>
+<article class="api-entry" id="JointVelocityController.step" data-api="JointVelocityController.step">
+<div class="entry-heading">
+<h3>
+<a href="#JointVelocityController.step">JointVelocityController.step</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/joint_velo_control.py#L43">源码 ↗</a>
+</div><pre class="signature"><code>JointVelocityController.step(duration_s)</code></pre><p>先 update(duration_s)，再 backend.advance(duration_s)。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>有限正数；仿真还须为 0.001 秒的整数倍。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>与 update() 及后端 advance() 相同。</p>
+<h4>执行细节</h4>
+<p>验证步长整数倍发生在后端 advance 阶段，因此错误的仿真周期可能已经发布了位置目标；调用方应先选择合法周期。</p><pre><code>hand.velocity.set_targets([0, 0, 0, 0.1, 0, 0])
+for _ in range(100):
+    hand.velocity.step(0.01)</code></pre></article>
+</section>
+<section class="api-section" id="force" aria-labelledby="force-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 06</p>
+<h2 id="force-title">ForceController</h2>
+<p class="section-subtitle">仿真 Newton 接触力反馈与真机原生阈值是两种不同接口。</p>
+</div>
+<p>继承 GeneralController 的六个公共方法。Newton 接口使用五指顺序；set_native_limits 使用六轴顺序。真机未标定力值，因此 set_targets 会拒绝执行。</p>
+<article class="api-entry" id="ForceController.__init__" data-api="ForceController.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#ForceController.__init__">ForceController</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/force_control.py#L8">源码 ↗</a>
+</div><pre class="signature"><code>ForceController(backend)</code></pre><p>创建零目标、禁用标记、零滤波值与空位置参考。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backend</td>
+<td>后端实例</td>
+<td>必填</td>
+<td>仿真力反馈需后端提供 contact_forces_n。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>ForceController 实例。</p>
+<h4>异常</h4>
+<p>无额外异常；后端的 I/O 或运行时异常向调用方传播。</p>
+</article>
+<article class="api-entry" id="ForceController.set_targets" data-api="ForceController.set_targets">
+<div class="entry-heading">
+<h3>
+<a href="#ForceController.set_targets">ForceController.set_targets</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/force_control.py#L15">源码 ↗</a>
+</div><pre class="signature"><code>ForceController.set_targets(forces_n)</code></pre><p>读取可用接触力，校验五指目标并从当前测量姿态建立反馈参考。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>forces_n</td>
+<td>array-like (5,) / N</td>
+<td>必填</td>
+<td>FINGERS 顺序，每指 0..5 N。大于 0 的通道参与反馈；0 表示不再积分该通道。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>NotImplementedError：后端 contact_forces_n 为 None（当前真机）；ValueError：目标形状、数值或范围不合法；读取异常向上传播。</p>
+<h4>执行细节</h4>
+<p>本方法不发送运动命令。每次调用重置低通滤波状态，周期循环随后调用 step()；将目标设为 0 不会主动张开释放接触。</p>
+</article>
+<article class="api-entry" id="ForceController.step" data-api="ForceController.step">
+<div class="entry-heading">
+<h3>
+<a href="#ForceController.step">ForceController.step</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/force_control.py#L27">源码 ↗</a>
+</div><pre class="signature"><code>ForceController.step(duration_s)</code></pre><p>采样接触力，低通滤波力误差并生成有界位置增量，发布后推进后端。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>有限正数；MuJoCo 推进还要求 0.001 秒的整数倍。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：时间无效或后端推进周期不合法；RuntimeError：未先 set_targets()；后端异常向上传播。</p>
+<h4>执行细节</h4>
+<p>alpha = 1 - exp(-dt / 0.03)，参考速度 = clip(0.35 × (目标力 - 滤波力), -0.3, 0.3) rad/s；禁用通道速度为 0。只更新前五个主动弯曲轴，拇指旋转保持参考。最后裁剪到机械边界。没有接触时力为 0，参考仍可积分到限位。</p><pre><code>with InspireHand.simulation(side=&quot;left&quot;, contact_fixture=True) as hand:
+    hand.force.set_targets([1, 1, 1, 1, 1])
+    for _ in range(1000):
+        hand.force.step(0.01)
+    hand.stop()
+    hand.position.set_targets([0] * 6)
+    hand.advance(3.0)</code></pre></article>
+<article class="api-entry" id="ForceController.set_native_limits" data-api="ForceController.set_native_limits">
+<div class="entry-heading">
+<h3>
+<a href="#ForceController.set_native_limits">ForceController.set_native_limits</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/force_control.py#L44">源码 ↗</a>
+</div><pre class="signature"><code>ForceController.set_native_limits(force_units)</code></pre><p>向支持原生力阈值的后端写六轴保护阈值，不执行 Newton 闭环。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>force_units</td>
+<td>array-like (6,) / 原始单位</td>
+<td>必填</td>
+<td>CHANNELS 顺序，每轴 0..1000；由后端四舍五入到整数。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：阈值不合法；NotImplementedError：后端没有 set_force_limits（如 MuJoCo）；ModbusError：设备写入失败。</p>
+</article>
+</section>
+<section class="api-section" id="cartesian" aria-labelledby="cartesian-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 07</p>
+<h2 id="cartesian-title">TargetPositionController</h2>
+<p class="section-subtitle">基于同一 URDF / mimic 模型的有界指尖 IK。</p>
+</div><pre><code>from inspire_sdk import TargetPositionController
+controller = TargetPositionController(backend)</code></pre><p>构造函数继承 GeneralController(backend)，并继承其六个公共方法。正常导入使用 inspire_sdk.target_pos_control；3d_target_pos_control.py 仅重导出同一个类，Python 常规 import 语法不能以数字开头。</p>
+<article class="api-entry" id="TargetPositionController.solve" data-api="TargetPositionController.solve">
+<div class="entry-heading">
+<h3>
+<a href="#TargetPositionController.solve">TargetPositionController.solve</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/target_pos_control.py#L6">源码 ↗</a>
+</div><pre class="signature"><code>TargetPositionController.solve(targets_m, tolerance_m=0.001, project=False, *, seed_rad=None, active_channels=None, lower_rad=None, upper_rad=None)</code></pre><p>仅求解 IK，不发布后端运动命令，也不推进物理。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>targets_m</td>
+<td>dict[str, array-like (3,)] / m</td>
+<td>必填</td>
+<td>非空映射，可指定一个或多个 FINGERS 名称，坐标为 hand_base 下的有限 xyz。</td>
+</tr>
+<tr>
+<td>tolerance_m</td>
+<td>float / m</td>
+<td>0.001</td>
+<td>有限正数，每个被请求指尖的欧氏残差必须不超过此值。</td>
+</tr>
+<tr>
+<td>project</td>
+<td>bool</td>
+<td>False</td>
+<td>False 时不可达目标抛出 ValueError；True 时接受求解到的可达位置并在结果中报告误差。</td>
+</tr>
+<tr>
+<td>seed_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>None 使用 backend.target_rad，即上一条命令；显式值必须位于请求的上下界内。需要测量姿态作初值时自行传入 hand.read_state().positions_rad。</td>
+</tr>
+<tr>
+<td>active_channels</td>
+<td>collection[str] | None</td>
+<td>None</td>
+<td>允许优化的主动轴；None 为全部；不能传单个字符串。未选轴保留 seed，不在 targets_m 中的手指也保留初值。</td>
+</tr>
+<tr>
+<td>lower_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>进一步限定解的下界；None 为模型下界。六轴均须在机械边界内。</td>
+</tr>
+<tr>
+<td>upper_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>进一步限定解的上界；None 为模型上界，须逐轴大于等于 lower_rad；相等时该轴锁定。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>IKResult：六轴解、请求 / 实现坐标、逐指残差与 reachable。</p>
+<h4>异常</h4>
+<p>ValueError：目标映射、向量、容差、边界、seed 或可选通道不合法；project=False 且任一残差超容差。</p>
+<h4>执行细节</h4>
+<p>四指沿一维可达曲线，拇指沿二维曲面；使用多初值有界最小二乘。未请求轴保留 seed。没有路径规划或避障保证。</p>
+</article>
+<article class="api-entry" id="TargetPositionController.set_targets" data-api="TargetPositionController.set_targets">
+<div class="entry-heading">
+<h3>
+<a href="#TargetPositionController.set_targets">TargetPositionController.set_targets</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/target_pos_control.py#L18">源码 ↗</a>
+</div><pre class="signature"><code>TargetPositionController.set_targets(targets_m, tolerance_m=0.001, project=False, *, seed_rad=None, active_channels=None, lower_rad=None, upper_rad=None)</code></pre><p>调用 solve()，成功后将六轴 IK 解传给 backend.set_positions()；仿真还更新请求目标的标记 site。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>targets_m</td>
+<td>dict[str, array-like (3,)] / m</td>
+<td>必填</td>
+<td>非空映射，可指定一个或多个 FINGERS 名称，坐标为 hand_base 下的有限 xyz。</td>
+</tr>
+<tr>
+<td>tolerance_m</td>
+<td>float / m</td>
+<td>0.001</td>
+<td>有限正数，每个被请求指尖的欧氏残差必须不超过此值。</td>
+</tr>
+<tr>
+<td>project</td>
+<td>bool</td>
+<td>False</td>
+<td>False 时不可达目标抛出 ValueError；True 时接受求解到的可达位置并在结果中报告误差。</td>
+</tr>
+<tr>
+<td>seed_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>None 使用 backend.target_rad，即上一条命令；显式值必须位于请求的上下界内。需要测量姿态作初值时自行传入 hand.read_state().positions_rad。</td>
+</tr>
+<tr>
+<td>active_channels</td>
+<td>collection[str] | None</td>
+<td>None</td>
+<td>允许优化的主动轴；None 为全部；不能传单个字符串。未选轴保留 seed，不在 targets_m 中的手指也保留初值。</td>
+</tr>
+<tr>
+<td>lower_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>进一步限定解的下界；None 为模型下界。六轴均须在机械边界内。</td>
+</tr>
+<tr>
+<td>upper_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>进一步限定解的上界；None 为模型上界，须逐轴大于等于 lower_rad；相等时该轴锁定。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>IKResult，与 solve() 相同。</p>
+<h4>异常</h4>
+<p>solve() 的全部异常，以及后端位置发布异常。不可达且 project=False 时不会发布运动命令。</p>
+<h4>执行细节</h4>
+<p>返回不表示反馈已到位，仍需 advance() 或单独的插补 / 到位等待。project=True 的投影是当前求解器找到的近似可达点，不承诺全局最近解。</p><pre><code>tips = hand.backend.kinematics.forward(hand.backend.description.upper * 0.4)
+result = hand.cartesian.set_targets({&quot;index&quot;: tips[&quot;index&quot;]}, tolerance_m=0.001)
+hand.advance(2.0)</code></pre></article>
+</section>
+<section class="api-section" id="state" aria-labelledby="state-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 08</p>
+<h2 id="state-title">HandState 与 IKResult</h2>
+<p class="section-subtitle">状态、来源标记与求解结果的完整字段。</p>
+</div>
+<p>HandState 可从 inspire_sdk 导入；IKResult 从 inspire_sdk.kinematics 导入。两者为 dataclass；字段按下面的顺序构成构造参数，未列默认值的字段为必填。通常直接使用 SDK 返回的实例。</p>
+<article class="api-entry" id="HandState">
+<h3>
+<a href="#HandState">HandState 字段</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">字段</th>
+<th scope="col">类型 / 形状</th>
+<th scope="col">仿真含义</th>
+<th scope="col">真机含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>timestamp_s</td>
+<td>float / s</td>
+<td>MuJoCo 仿真时间</td>
+<td>本机 time.monotonic()，不是设备时钟</td>
+</tr>
+<tr>
+<td>positions_rad</td>
+<td>ndarray (6,) / rad</td>
+<td>主动轴实际 qpos</td>
+<td>ANGLE_ACT 的线性模型映射</td>
+</tr>
+<tr>
+<td>velocities_rad_s</td>
+<td>ndarray (6,) / rad/s</td>
+<td>主动轴实际 qvel</td>
+<td>两次角度采样的有限差分；首次为零</td>
+</tr>
+<tr>
+<td>joint_positions_rad</td>
+<td>dict[str, float] / rad</td>
+<td>12 个活动关节的实际 qpos</td>
+<td>主动轴反馈与 mimic 推算被动角度</td>
+</tr>
+<tr>
+<td>joint_velocities_rad_s</td>
+<td>dict[str, float] / rad/s</td>
+<td>12 个活动关节的实际 qvel</td>
+<td>主动轴差分速度与 mimic 推算</td>
+</tr>
+<tr>
+<td>fingertip_positions_m</td>
+<td>dict[str, ndarray (3,)] / m</td>
+<td>五指 site 的实际坐标</td>
+<td>根据模型角度计算的 FK 估计</td>
+</tr>
+<tr>
+<td>contact_forces_n</td>
+<td>ndarray (5,) | None / N</td>
+<td>每指所有接触的法向力总和</td>
+<td>None；原始硬件力尚未标定为 N</td>
+</tr>
+<tr>
+<td>raw_forces</td>
+<td>ndarray (6,) | None</td>
+<td>None</td>
+<td>FORCE_ACT 六路 16-bit 有符号值</td>
+</tr>
+<tr>
+<td>velocity_source</td>
+<td>str</td>
+<td>mujoco_qvel</td>
+<td>首次 unavailable_first_sample；之后 finite_difference_of_angle_feedback</td>
+</tr>
+<tr>
+<td>force_source</td>
+<td>str</td>
+<td>mujoco_contact_normal_sum</td>
+<td>native_force_register_uncalibrated</td>
+</tr>
+<tr>
+<td>error_codes</td>
+<td>ndarray (6,) | None，默认 None</td>
+<td>None</td>
+<td>六路设备错误码，非零表示故障</td>
+</tr>
+<tr>
+<td>raw_angles</td>
+<td>ndarray (6,) | None，默认 None</td>
+<td>None</td>
+<td>ANGLE_ACT 原始整数 0..1000，用于姿态到位判断</td>
+</tr>
+<tr>
+<td>position_source</td>
+<td>str，默认 unspecified</td>
+<td>mujoco_qpos</td>
+<td>model_estimate_from_angle_feedback</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>真机多组寄存器读取并非原子快照，第一次差分速度不可用；position_source 明确标记模型估计，不能把 FK 当作额外的实测指尖传感器。</p>
+</article>
+<article class="api-entry" id="HandState.to_dict" data-api="HandState.to_dict">
+<div class="entry-heading">
+<h3>
+<a href="#HandState.to_dict">HandState.to_dict</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/state.py#L21">源码 ↗</a>
+</div><pre class="signature"><code>HandState.to_dict()</code></pre><p>递归将 dataclass 与 NumPy 数组转为可供 JSON 序列化的 Python 容器。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>dict：保留全部字段名；ndarray 变为 list，字典递归转换，None 与标量保留。</p>
+<h4>异常</h4>
+<p>无额外校验异常。</p><pre><code>import json
+print(json.dumps(hand.read_state().to_dict(), indent=2))</code></pre></article>
+<article class="api-entry" id="IKResult">
+<h3>
+<a href="#IKResult">IKResult 字段</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">字段</th>
+<th scope="col">类型 / 形状</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>ndarray (6,) / rad</td>
+<td>完整主动轴解，包含保留 seed 的未优化轴。</td>
+</tr>
+<tr>
+<td>requested_m</td>
+<td>dict[str, ndarray (3,)] / m</td>
+<td>只包含用户请求的指尖目标。</td>
+</tr>
+<tr>
+<td>achieved_m</td>
+<td>dict[str, ndarray (3,)] / m</td>
+<td>只包含用户请求手指的 FK 实现坐标。</td>
+</tr>
+<tr>
+<td>errors_m</td>
+<td>dict[str, float] / m</td>
+<td>每个请求目标的欧氏残差。</td>
+</tr>
+<tr>
+<td>reachable</td>
+<td>bool</td>
+<td>所有请求目标的残差均不超过 tolerance_m 时为 True；投影模式可能为 False。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>IKResult 没有 to_dict() 方法；如需 JSON，请显式转换 ndarray。reachable 描述模型求解误差，不说明真机是否已到位。</p>
+</article>
+</section>
+<section class="api-section" id="simulation" aria-labelledby="simulation-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 09</p>
+<h2 id="simulation-title">MujocoBackend</h2>
+<p class="section-subtitle">1 ms 力矩驱动仿真，与 controller 解耦。</p>
+</div><pre><code>from inspire_sdk import MujocoBackend</code></pre><p>属性 description 为 HandModel，kinematics 为独立 FK/IK 实例，model / data 为 MuJoCo 物理模型与状态，target_rad 为最后发布目标，reference_rad 为后端限速参考，closed 为关闭标记。支持 with。</p>
+<article class="api-entry" id="MujocoBackend.__init__" data-api="MujocoBackend.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.__init__">MujocoBackend</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L11">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend(side=&#x27;right&#x27;, contact_fixture=False)</code></pre><p>加载左右手本地 MJCF、URDF 与运动学模型，初始化为展开姿态。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>side</td>
+<td>str</td>
+<td>&#x27;right&#x27;</td>
+<td>left 或 right。</td>
+</tr>
+<tr>
+<td>contact_fixture</td>
+<td>bool</td>
+<td>False</td>
+<td>是否在五指关闭路径上生成半径 0.008 m 的固定接触球。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>MujocoBackend 实例。</p>
+<h4>异常</h4>
+<p>ValueError：手别无效；FileNotFoundError：模型缺失；MuJoCo 加载异常。</p>
+<h4>执行细节</h4>
+<p>使用本地资源，不要求 ROS；构造后调用一次 mj_forward。控制命令不会直接覆写物理 qpos。</p>
+</article>
+<article class="api-entry" id="MujocoBackend.set_positions" data-api="MujocoBackend.set_positions">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.set_positions">MujocoBackend.set_positions</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L51">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend.set_positions(positions_rad)</code></pre><p>校验并保存六轴目标。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>完整主动轴位置目标。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：向量或边界无效；RuntimeError：后端已关闭。</p>
+<h4>执行细节</h4>
+<p>只修改 target_rad，实际运动发生在 advance()。</p>
+</article>
+<article class="api-entry" id="MujocoBackend.advance" data-api="MujocoBackend.advance">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.advance">MujocoBackend.advance</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L55">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend.advance(duration_s)</code></pre><p>按模型固定步长推进动力学，并对目标参考限速。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>有限正数，必须是 0.001 秒的整数倍，且至少包含一步。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：周期不合法；RuntimeError：后端已关闭。</p>
+<h4>执行细节</h4>
+<p>每步将 reference_rad 向 target_rad 移动最多 max_velocity × dt；PD 力矩为 clip(2.0 × (reference - q) - 0.08 × qvel, -0.4, 0.4) Nm，然后 mj_step。方法按仿真时间运行，不主动匹配墙钟时间。</p>
+</article>
+<article class="api-entry" id="MujocoBackend.contact_forces" data-api="MujocoBackend.contact_forces">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.contact_forces">MujocoBackend.contact_forces</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L73">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend.contact_forces()</code></pre><p>遍历 MuJoCo 当前接触，将非负法向接触力按所属手指累计。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>numpy.ndarray (5,) / N，FINGERS 顺序。没有接触则为零。</p>
+<h4>异常</h4>
+<p>MuJoCo 接触查询异常向上传播。</p>
+<h4>执行细节</h4>
+<p>这是所有属于该手指的接触法向力总和，不是触觉阵列、指尖唯一接触力或电机力矩。该方法自身不检查 closed；使用 read_state() 可获得含关闭检查的完整状态。</p>
+</article>
+<article class="api-entry" id="MujocoBackend.read_state" data-api="MujocoBackend.read_state">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.read_state">MujocoBackend.read_state</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L85">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend.read_state()</code></pre><p>读取主动轴、12 个活动关节、指尖 site 和当前接触力，不推进物理。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>HandState；来源分别为 mujoco_qpos、mujoco_qvel、mujoco_contact_normal_sum。</p>
+<h4>异常</h4>
+<p>RuntimeError：后端已关闭。</p>
+</article>
+<article class="api-entry" id="MujocoBackend.stop" data-api="MujocoBackend.stop">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.stop">MujocoBackend.stop</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L97">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend.stop()</code></pre><p>将 target_rad 与 reference_rad 同时设为裁剪后的当前主动轴测量姿态。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>RuntimeError：后端已关闭。</p>
+<h4>执行细节</h4>
+<p>后续 advance 仍通过 PD 力矩维持姿态；不会重置仿真时间，也不会清理 controller 自己的积分状态。</p>
+</article>
+<article class="api-entry" id="MujocoBackend.close" data-api="MujocoBackend.close">
+<div class="entry-heading">
+<h3>
+<a href="#MujocoBackend.close">MujocoBackend.close</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/simulation.py#L102">源码 ↗</a>
+</div><pre class="signature"><code>MujocoBackend.close()</code></pre><p>将 closed 标记设为 True；可重复调用。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>无。</p>
+<h4>执行细节</h4>
+<p>不调用 stop()，不自动关闭调用方自行创建的 viewer 或录像器。</p>
+</article>
+</section>
+<section class="api-section" id="modbus" aria-labelledby="modbus-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 10</p>
+<h2 id="modbus-title">ModbusTcpBackend</h2>
+<p class="section-subtitle">显式真机连接、原生限制与反馈。</p>
+</div><pre><code>from inspire_sdk.modbus_tcp import ModbusTcpBackend, ModbusError, RegisterMap</code></pre><p>属性 description / kinematics 与仿真同义；target_rad 为最近命令参考；force_limits_units 为本实例最近写入的六轴阈值（未写时 None），registers 为 RegisterMap；native_position_feedback=True。支持 with。ModbusError 继承 RuntimeError。</p>
+<article class="api-entry" id="ModbusTcpBackend.__init__" data-api="ModbusTcpBackend.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.__init__">ModbusTcpBackend</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L34">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend(host, port=6000, device_id=None, side=&#x27;right&#x27;, timeout_s=1.0, registers=None, client=None)</code></pre><p>连接设备并只读 ANGLE_ACT 初始化 target_rad，不写入限速、力阈值或位置。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>host</td>
+<td>str</td>
+<td>必填</td>
+<td>明确的当前设备地址，不能为空。</td>
+</tr>
+<tr>
+<td>port</td>
+<td>int</td>
+<td>6000</td>
+<td>TCP 端口，1..65535。</td>
+</tr>
+<tr>
+<td>device_id</td>
+<td>int | None</td>
+<td>None</td>
+<td>TCP Unit Identifier，1..255；None 保留旧默认：右手 1、左手 2。连接当前示例设备时显式指定 255。</td>
+</tr>
+<tr>
+<td>side</td>
+<td>str</td>
+<td>&#x27;right&#x27;</td>
+<td>left 或 right，决定模型及默认设备 ID。</td>
+</tr>
+<tr>
+<td>timeout_s</td>
+<td>float / s</td>
+<td>1.0</td>
+<td>构造默认客户端时使用的有限正请求超时。</td>
+</tr>
+<tr>
+<td>registers</td>
+<td>RegisterMap | None</td>
+<td>None</td>
+<td>None 使用默认地址表；可提供固件对应地址。</td>
+</tr>
+<tr>
+<td>client</td>
+<td>ModbusTcpClient 兼容实例 | None</td>
+<td>None</td>
+<td>None 时创建 pymodbus 客户端且 retries=0。传入实例也会调用 connect，并在关闭 / 构造失败时 close；其超时与重试策略由调用方负责。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>ModbusTcpBackend 实例。</p>
+<h4>异常</h4>
+<p>ValueError：host、端口、设备 ID、手别、超时或原始角度无效；ModbusError：连接失败、响应失败或短读；模型加载异常。</p>
+<h4>执行细节</h4>
+<p>构造失败会关闭已创建或传入的客户端。TCP Unit ID 与 RS485 HAND_ID 不应直接等同。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.set_positions" data-api="ModbusTcpBackend.set_positions">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.set_positions">ModbusTcpBackend.set_positions</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L104">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.set_positions(positions_rad)</code></pre><p>校验六轴模型角度、映射到设备整数，检查故障后发送 ANGLE_SET。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>完整主动轴目标，机械范围内。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：目标无效；ModbusError：故障码非零、连接关闭、读取 / 写入失败或应答地址 / 数量不匹配。</p>
+<h4>执行细节</h4>
+<p>首次运动前，若本实例未设置过，则写六轴 SPEED_SET=150、FORCE_SET=200；显式设置过的限制会保留。成功后更新 target_rad。一次 FC16 传六个 16-bit 通道；写操作不自动重试，写应答不代表运动完成。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.set_speed_limits" data-api="ModbusTcpBackend.set_speed_limits">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.set_speed_limits">ModbusTcpBackend.set_speed_limits</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L116">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.set_speed_limits(speed_units)</code></pre><p>写六轴设备原生速度上限，并标记本实例已初始化限速。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>speed_units</td>
+<td>array-like (6,) / 原始单位</td>
+<td>必填</td>
+<td>每轴 1..1000，四舍五入到整数；不接受 0。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：形状、非有限值或范围错误；ModbusError：写入失败。</p>
+<h4>执行细节</h4>
+<p>不表示带方向 rad/s 速度目标。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.set_force_limits" data-api="ModbusTcpBackend.set_force_limits">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.set_force_limits">ModbusTcpBackend.set_force_limits</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L123">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.set_force_limits(force_units)</code></pre><p>写六轴原生力保护阈值，并保存到 force_limits_units。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>force_units</td>
+<td>array-like (6,) / 原始单位</td>
+<td>必填</td>
+<td>每轴 0..1000，四舍五入到整数；不同于真机 demo CLI 的 1..1000。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：阈值不合法；ModbusError：写入失败。</p>
+<h4>执行细节</h4>
+<p>不执行 Newton 力反馈或力标定。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.read_errors" data-api="ModbusTcpBackend.read_errors">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.read_errors">ModbusTcpBackend.read_errors</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L95">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.read_errors()</code></pre><p>读取三个 16-bit ERROR 寄存器，逐个按低字节、再高字节拆分。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>numpy.ndarray (6,) / int：CHANNELS 顺序的六路错误码。</p>
+<h4>异常</h4>
+<p>ModbusError：连接关闭、错误响应、短读或通信失败。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.read_motion_diagnostics" data-api="ModbusTcpBackend.read_motion_diagnostics">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.read_motion_diagnostics">ModbusTcpBackend.read_motion_diagnostics</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L131">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.read_motion_diagnostics()</code></pre><p>只读采集命令、限值和状态寄存器，不修改设备。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>dict：read_only=True、timestamp_s、angle_set、force_set、speed_set、status_codes、read_errors。前三个数据项为六个整数；status_codes 为六个原始字节；独立读取失败的数据项为 None，错误文本保存在 read_errors。</p>
+<h4>异常</h4>
+<p>常见的 RuntimeError / ValueError / OSError 逐项记录，不因某项不可读而放弃其余项；其他异常向上传播。</p>
+<h4>执行细节</h4>
+<p>多次读取不是原子快照。STATUS 保留原始码，不假设固件含义。若需保留失败现场，应在 stop() 覆盖 ANGLE_SET 之前读取。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.read_state" data-api="ModbusTcpBackend.read_state">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.read_state">ModbusTcpBackend.read_state</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L153">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.read_state()</code></pre><p>依次读取角度、原始力与错误码，生成模型估计及来源标记。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>HandState；contact_forces_n=None，raw_forces 为有符号原始值，raw_angles 为六个原始角度。</p>
+<h4>异常</h4>
+<p>ModbusError：通信、响应或长度无效；ValueError：ANGLE_ACT 不在 0..1000。</p>
+<h4>执行细节</h4>
+<p>FORCE_ACT 大于等于 32768 的值减 65536。速度来自相邻位置采样之差 / monotonic 时间差；首次返回零并标记 unavailable_first_sample。被动关节与指尖坐标通过 mimic / FK 推算。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.advance" data-api="ModbusTcpBackend.advance">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.advance">ModbusTcpBackend.advance</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L179">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.advance(duration_s)</code></pre><p>仅等待指定墙钟时间，不额外读取或写入设备。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>duration_s</td>
+<td>float / s</td>
+<td>必填</td>
+<td>有限正数，无 1 ms 整数倍限制。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ValueError：时长无效；ModbusError：连接已关闭。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.stop" data-api="ModbusTcpBackend.stop">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.stop">ModbusTcpBackend.stop</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L184">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.stop()</code></pre><p>检查故障、读取六轴实际原始角度，并原样写回 ANGLE_SET 请求保持当前位置。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>ModbusError：设备故障、通信或写应答失败；ValueError：角度反馈不合法。</p>
+<h4>执行细节</h4>
+<p>不设置新的速度 / 力阈值，不提供断电急停或硬件失联看门狗；故障或失联时保持请求仍可能失败。</p>
+</article>
+<article class="api-entry" id="ModbusTcpBackend.close" data-api="ModbusTcpBackend.close">
+<div class="entry-heading">
+<h3>
+<a href="#ModbusTcpBackend.close">ModbusTcpBackend.close</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/modbus_tcp.py#L192">源码 ↗</a>
+</div><pre class="signature"><code>ModbusTcpBackend.close()</code></pre><p>关闭客户端并设置 closed；已关闭时不重复关闭。</p>
+<h4>参数</h4>
+<p>无。</p>
+<h4>返回</h4>
+<p>None。</p>
+<h4>异常</h4>
+<p>传入客户端的 close() 异常向上传播。</p>
+<h4>执行细节</h4>
+<p>退出 with 同样只调用 close()，不会隐式发送运动命令。</p>
+</article>
+<article class="api-entry" id="RegisterMap">
+<h3>
+<a href="#RegisterMap">RegisterMap 地址表</a>
+</h3>
+<p>冻结 dataclass；下列各字段均可用同名 int 关键字构造，以替换特定固件的地址。地址直接用于 FC03 / FC16，不除以 2、不加 40001 偏移。</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">字段</th>
+<th scope="col">默认地址</th>
+<th scope="col">长度 / 用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>angle_set</td>
+<td>1486</td>
+<td>6 × 16-bit 位置命令</td>
+</tr>
+<tr>
+<td>force_set</td>
+<td>1498</td>
+<td>6 × 16-bit 原生阈值</td>
+</tr>
+<tr>
+<td>speed_set</td>
+<td>1522</td>
+<td>6 × 16-bit 原生速度上限</td>
+</tr>
+<tr>
+<td>angle_actual</td>
+<td>1546</td>
+<td>6 × 16-bit 实际角度</td>
+</tr>
+<tr>
+<td>force_actual</td>
+<td>1582</td>
+<td>6 × 16-bit 原始力</td>
+</tr>
+<tr>
+<td>error</td>
+<td>1606</td>
+<td>3 × 16-bit → 6 个低字节优先错误码</td>
+</tr>
+<tr>
+<td>status</td>
+<td>1612</td>
+<td>3 × 16-bit → 6 个低字节优先状态码</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>以上为当前实现的地址配置。IP 配置与 Flash 保存由独立 network_config.py 处理，不属于此运动后端地址表。</p>
+</article>
+</section>
+<section class="api-section" id="model" aria-labelledby="model-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 11</p>
+<h2 id="model-title">HandModel 与 Kinematics</h2>
+<p class="section-subtitle">共享机械约束、寄存器映射和 FK / IK。</p>
+</div><pre><code>from inspire_sdk import HandModel
+from inspire_sdk.kinematics import Kinematics</code></pre><article class="api-entry" id="HandModel.__init__" data-api="HandModel.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#HandModel.__init__">HandModel</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/model.py#L29">源码 ↗</a>
+</div><pre class="signature"><code>HandModel(side=&#x27;right&#x27;)</code></pre><p>解析所选手别 URDF，建立主动轴限位、速度上限与 mimic 关系。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>side</td>
+<td>str</td>
+<td>&#x27;right&#x27;</td>
+<td>left 或 right。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>HandModel 实例。</p>
+<h4>异常</h4>
+<p>ValueError：手别无效；FileNotFoundError：URDF 缺失，可运行 python -m visualization.build_assets 生成。</p>
+<h4>执行细节</h4>
+<p>属性 lower、upper、max_velocity 为六轴 ndarray；joints 为活动关节名到 XML Element 的映射；mimics 为被动关节到 (主动名, multiplier, offset) 的映射；urdf_path / scene_path 为本地模型路径。有效上界和速度取主动与被动限制的交集。</p>
+</article>
+<article class="api-entry" id="HandModel.positions" data-api="HandModel.positions">
+<div class="entry-heading">
+<h3>
+<a href="#HandModel.positions">HandModel.positions</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/model.py#L60">源码 ↗</a>
+</div><pre class="signature"><code>HandModel.positions(positions_rad)</code></pre><p>校验六轴角度并返回裁剪后的副本。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>允许边界浮点误差 1e-10，超出该容差则拒绝。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)。</p>
+<h4>异常</h4>
+<p>ValueError：形状不是 (6,)、含非有限数值或越界。</p>
+</article>
+<article class="api-entry" id="HandModel.velocities" data-api="HandModel.velocities">
+<div class="entry-heading">
+<h3>
+<a href="#HandModel.velocities">HandModel.velocities</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/model.py#L66">源码 ↗</a>
+</div><pre class="signature"><code>HandModel.velocities(velocities_rad_s)</code></pre><p>校验六轴带符号速度。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>velocities_rad_s</td>
+<td>array-like (6,) / rad/s</td>
+<td>必填</td>
+<td>每轴绝对值不超过 max_velocity + 1e-10。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,)：副本。</p>
+<h4>异常</h4>
+<p>ValueError：形状、数值或速度上限错误。</p>
+</article>
+<article class="api-entry" id="HandModel.expand" data-api="HandModel.expand">
+<div class="entry-heading">
+<h3>
+<a href="#HandModel.expand">HandModel.expand</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/model.py#L72">源码 ↗</a>
+</div><pre class="signature"><code>HandModel.expand(positions_rad)</code></pre><p>把六个主动轴位置展开成所有活动关节位置。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>先经过 positions() 验证。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>dict[str, float]：12 个活动关节，含按 multiplier / offset 计算的被动关节。</p>
+<h4>异常</h4>
+<p>与 positions() 相同。</p>
+</article>
+<article class="api-entry" id="HandModel.to_registers" data-api="HandModel.to_registers">
+<div class="entry-heading">
+<h3>
+<a href="#HandModel.to_registers">HandModel.to_registers</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/model.py#L79">源码 ↗</a>
+</div><pre class="signature"><code>HandModel.to_registers(positions_rad)</code></pre><p>把模型角度线性映射为设备角度并取最近整数。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>合法六轴位置。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,) / int，0..1000。</p>
+<h4>异常</h4>
+<p>与 positions() 相同。</p>
+<h4>执行细节</h4>
+<p>公式为 rint(1000 × (1 - (q - lower) / (upper - lower)))。lower → 1000，upper → 0。</p>
+</article>
+<article class="api-entry" id="HandModel.from_registers" data-api="HandModel.from_registers">
+<div class="entry-heading">
+<h3>
+<a href="#HandModel.from_registers">HandModel.from_registers</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/model.py#L84">源码 ↗</a>
+</div><pre class="signature"><code>HandModel.from_registers(registers)</code></pre><p>把设备原始角度线性映射到模型 rad。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>registers</td>
+<td>array-like (6,) / 原始单位</td>
+<td>必填</td>
+<td>六个有限值，范围 0..1000；此转换函数本身不要求为整数。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>numpy.ndarray (6,) / rad。</p>
+<h4>异常</h4>
+<p>ValueError：形状、数值或范围无效。</p>
+<h4>执行细节</h4>
+<p>公式为 lower + (1 - registers / 1000) × (upper - lower)。这属于模型估计，未校准硬件非线性。</p>
+</article>
+<article class="api-entry" id="Kinematics.__init__" data-api="Kinematics.__init__">
+<div class="entry-heading">
+<h3>
+<a href="#Kinematics.__init__">Kinematics</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/kinematics.py#L19">源码 ↗</a>
+</div><pre class="signature"><code>Kinematics(description)</code></pre><p>根据描述加载独立的 MuJoCo 模型和 data 用于 FK / IK，不推进实际后端动力学。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>description</td>
+<td>HandModel</td>
+<td>必填</td>
+<td>含同一手别 URDF、scene_path 与 mimic 关系。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>Kinematics 实例。</p>
+<h4>异常</h4>
+<p>MuJoCo 模型加载错误向上传播。</p>
+<h4>执行细节</h4>
+<p>内部 FK 会修改该实例的工作 data；同一实例并发调用需由调用方串行处理。</p>
+</article>
+<article class="api-entry" id="Kinematics.forward" data-api="Kinematics.forward">
+<div class="entry-heading">
+<h3>
+<a href="#Kinematics.forward">Kinematics.forward</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/kinematics.py#L26">源码 ↗</a>
+</div><pre class="signature"><code>Kinematics.forward(positions_rad)</code></pre><p>写入工作模型的主动与 mimic 关节位置，调用 mj_forward 计算五指 site。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>positions_rad</td>
+<td>array-like (6,) / rad</td>
+<td>必填</td>
+<td>由 description.expand() 验证并展开。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>dict[str, numpy.ndarray (3,)] / m：五指 hand_base 坐标副本。</p>
+<h4>异常</h4>
+<p>ValueError：模型位置无效；MuJoCo 计算异常向上传播。</p>
+<h4>执行细节</h4>
+<p>只修改独立运动学工作模型，不发送设备命令，也不推进物理后端。</p>
+</article>
+<article class="api-entry" id="Kinematics.inverse" data-api="Kinematics.inverse">
+<div class="entry-heading">
+<h3>
+<a href="#Kinematics.inverse">Kinematics.inverse</a>
+</h3>
+<a class="source" href="https://github.com/Ghiara/Inspire_Hand_SDK_RH56E2/blob/master/inspire_sdk/kinematics.py#L32">源码 ↗</a>
+</div><pre class="signature"><code>Kinematics.inverse(targets_m, seed_rad=None, tolerance_m=0.001, project=False, *, active_channels=None, lower_rad=None, upper_rad=None)</code></pre><p>逐个请求手指在其耦合可达流形上求解，返回完整六轴解。</p>
+<h4>参数</h4>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">名称</th>
+<th scope="col">类型 / 单位</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>targets_m</td>
+<td>dict[str, array-like (3,)] / m</td>
+<td>必填</td>
+<td>非空映射，可指定一个或多个 FINGERS 名称，坐标为 hand_base 下的有限 xyz。</td>
+</tr>
+<tr>
+<td>seed_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>None 使用六个 0（与 TargetPositionController.solve 默认取 backend.target_rad 不同）。必须位于请求边界内。</td>
+</tr>
+<tr>
+<td>tolerance_m</td>
+<td>float / m</td>
+<td>0.001</td>
+<td>有限正数，每个被请求指尖的欧氏残差必须不超过此值。</td>
+</tr>
+<tr>
+<td>project</td>
+<td>bool</td>
+<td>False</td>
+<td>False 时不可达目标抛出 ValueError；True 时接受求解到的可达位置并在结果中报告误差。</td>
+</tr>
+<tr>
+<td>active_channels</td>
+<td>collection[str] | None</td>
+<td>None</td>
+<td>允许优化的主动轴；None 为全部；不能传单个字符串。未选轴保留 seed，不在 targets_m 中的手指也保留初值。</td>
+</tr>
+<tr>
+<td>lower_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>进一步限定解的下界；None 为模型下界。六轴均须在机械边界内。</td>
+</tr>
+<tr>
+<td>upper_rad</td>
+<td>array-like (6,) | None / rad</td>
+<td>None</td>
+<td>进一步限定解的上界；None 为模型上界，须逐轴大于等于 lower_rad；相等时该轴锁定。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h4>返回</h4>
+<p>IKResult，字段见上文。</p>
+<h4>异常</h4>
+<p>ValueError：目标、边界、seed、优化通道、容差无效，或 project=False 且目标不可达；优化器异常向上传播。</p>
+<h4>执行细节</h4>
+<p>每个四指优化一个轴，拇指最多两个；可选轴与等上下界共同决定自由变量。多初值包括 seed、行程 15% / 50% / 85%，双轴还包括两组交叉初值。使用 scipy.optimize.least_squares，最大 150 次评估，ftol / xtol / gtol 均为 1e-12；选残差最小的局部结果。未请求轴保持 seed。</p>
+</article>
+<article class="api-entry" id="context-manager">
+<h3>
+<a href="#context-manager">上下文协议</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">类</th>
+<th scope="col">__enter__()</th>
+<th scope="col">__exit__(*args)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>InspireHand</td>
+<td>返回自身</td>
+<td>调用 close()，返回 None，不抑制异常。</td>
+</tr>
+<tr>
+<td>MujocoBackend</td>
+<td>返回自身</td>
+<td>调用 close()，返回 None，不抑制异常。</td>
+</tr>
+<tr>
+<td>ModbusTcpBackend</td>
+<td>返回自身</td>
+<td>调用 close()，返回 None，不抑制异常。</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>这些方法不隐式 stop()。应在控制循环正常退出或需要保持时显式调用 hand.stop()，并处理后端失败。</p>
+</article>
+</section>
+<section class="api-section" id="network" aria-labelledby="network-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 12</p>
+<h2 id="network-title">网络配置 CLI</h2>
+<p class="section-subtitle">IP 读取、修改与 Flash 保存独立于运动控制。</p>
+</div>
+<p>network_config.py 不导入运动控制模块；默认只读，不扫描设备、不修改电脑网口、不自动重启。下面的参数用于此独立入口，不是 InspireHand.modbus_tcp() 的参数。</p>
+<article class="api-entry" id="network-options">
+<h3>
+<a href="#network-options">完整命令参数</a>
+</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th scope="col">参数</th>
+<th scope="col">默认值</th>
+<th scope="col">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>--host</td>
+<td>192.168.11.210</td>
+<td>当前连接 IPv4，须为可用单播地址；写入时仍填写旧地址。</td>
+</tr>
+<tr>
+<td>--port</td>
+<td>6000</td>
+<td>TCP 端口，1..65535。</td>
+</tr>
+<tr>
+<td>--device-id</td>
+<td>255</td>
+<td>TCP Unit ID，1..255。</td>
+</tr>
+<tr>
+<td>--timeout</td>
+<td>2.0</td>
+<td>有限正请求超时秒数；默认客户端 retries=0。</td>
+</tr>
+<tr>
+<td>--set-ip</td>
+<td>未设置</td>
+<td>新 IPv4；只有提供此参数才写设备 IP。</td>
+</tr>
+<tr>
+<td>--save</td>
+<td>False</td>
+<td>必须与 --set-ip 同时使用；回读通过后请求全局 Flash 参数保存。</td>
+</tr>
+<tr>
+<td>--network-only</td>
+<td>False</td>
+<td>只读本机网口和路由，不连接设备；不能同时 --set-ip。</td>
+</tr>
+<tr>
+<td>--ip-layout</td>
+<td>auto</td>
+<td>auto / packed-le / packed-be / octet；显式布局须已根据固件核实。</td>
+</tr>
+</tbody>
+</table>
+</div><pre><code># 读取
+python network_config.py --host 192.168.11.210
+# 修改，不保存
+python network_config.py --host 192.168.11.210 --set-ip 192.168.1.210
+# 修改并请求保存
+python network_config.py --host 192.168.11.210 --set-ip 192.168.1.210 --save
+# 已核实 packed-le 的设备，保存已修改但待生效的配置
+python network_config.py --host 192.168.11.210 --set-ip 192.168.1.210 --ip-layout packed-le --save
+# 手动重新上电、电脑网口可访问新网段后确认
+python network_config.py --host 192.168.1.210</code></pre></article>
+<article class="api-entry" id="network-semantics">
+<h3>
+<a href="#network-semantics">寄存器编码与保存行为</a>
+</h3>
+<p>设备 IP 起始地址为 1700。packed-le / packed-be 将四个字节按小端 / 大端打包为两个 16-bit 寄存器；octet 使用四个寄存器分别存一个字节。auto 仅通过读取与 --host 比对，并独立核对 1702，不能唯一确认时拒绝写入。修改后先回读目标 IP。</p>
+<p>保存地址为 1005：packed-be 写 0x0100，其他布局写 1，保持相邻 RESET_PARA 字节为 0。保存前后均回读 IP；设备已经是目标 IP 时跳过重写但仍可请求保存。请求后预留 2 秒等待，不将应答或等待当作持久化证明。保存作用于当前可保存的全局参数；手动重新上电后应使用新地址再次读取。</p>
+<p>脚本返回码：0 表示当前流程完成，1 表示导入 / 通信 / 配置失败，130 表示中断，argparse 参数错误通常为 2。失败后不自动重试、不自动回滚。</p>
+</article>
+</section>
+<section class="api-section" id="examples" aria-labelledby="examples-title">
+<div class="section-heading">
+<p class="eyebrow">REFERENCE / 13</p>
+<h2 id="examples-title">常用组合</h2>
+<p class="section-subtitle">通过不同 controller 复用相同后端。</p>
+</div>
+<article class="api-entry" id="example-ik">
+<h3>
+<a href="#example-ik">约束指尖 IK 与等待到位</a>
+</h3><pre><code>from inspire_sdk import InspireHand
+
+with InspireHand.simulation(side=&quot;left&quot;) as hand:
+    seed = hand.read_state().positions_rad
+    target_pose = hand.backend.description.upper * 0.3
+    tips = hand.backend.kinematics.forward(target_pose)
+    result = hand.cartesian.solve(
+        {&quot;index&quot;: tips[&quot;index&quot;]},
+        seed_rad=seed,
+        active_channels=[&quot;index&quot;],
+        tolerance_m=0.001,
+    )
+    reached = hand.general.move_to_positions(
+        result.positions_rad, rate_rad_s=0.1, timeout_s=30,
+    )
+    print(result.errors_m, reached.positions_rad)</code></pre></article>
+<article class="api-entry" id="example-real">
+<h3>
+<a href="#example-real">真机：读取、设置阈值与命名姿态</a>
+</h3><pre><code>from inspire_sdk import InspireHand
+
+with InspireHand.modbus_tcp(
+    &quot;192.168.11.210&quot;, side=&quot;left&quot;, device_id=255, timeout_s=1.0,
+) as hand:
+    print(hand.read_state().to_dict())
+    hand.backend.set_speed_limits([200] * 6)
+    hand.force.set_native_limits([200] * 6)
+    opened = hand.open_hand(rate_rad_s=0.2, tolerance_units=20, timeout_s=30)
+    # 在这里运行所需动作，并在切换模式前结束旧控制循环。
+    zeroed = hand.return_to_zero(rate_rad_s=0.2, tolerance_units=20, timeout_s=30)</code></pre><p>此示例发布全手运动命令。回零目标为设备五路 0、拇指旋转 1000；不是六轴 0 rad。</p>
+</article>
+</section>
+  <footer class="page-footer">
+<span>Inspire RH56E2 SDK · Yuan Meng</span>
+<a href="#top">回到顶部 ↑</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -13,6 +13,16 @@ import time
 ROOT = Path(__file__).resolve().parent
 
 
+def add_connection_arguments(parser):
+    parser.add_argument("--real", action="store_true", help="Connect to hardware; otherwise simulation only")
+    parser.add_argument("--host", default="192.168.11.210")
+    parser.add_argument("--port", type=int, default=6000)
+    parser.add_argument("--device-id", type=int)
+    parser.add_argument("--timeout", type=float, default=1.0, help="Per-request timeout in seconds; no retries")
+    parser.add_argument("--side", choices=("right", "left"), default="right")
+    parser.add_argument("--headless", action="store_true", help="No viewer (hardware motion demos reject this)")
+
+
 def default_log_path(prefix, extension):
     stamp = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y%m%d_%H%M%S_%f")
     return ROOT / "logs" / f"{prefix}_{stamp}.{extension}"
@@ -45,6 +55,26 @@ def parser():
             sub.add_argument("--positions-rad", nargs=6, type=float, required=True)
             sub.add_argument("--speed-units", type=float, default=150)
             sub.add_argument("--force-units", type=float, default=200)
+    check = commands.add_parser("check", help="Read-only connection/state check; --real enables Modbus")
+    add_connection_arguments(check)
+    check.add_argument("--samples", type=int, default=5)
+    check.add_argument("--interval", type=float, default=0.2)
+    check.add_argument("--diagnostics", action="store_true", help="Also read ANGLE_SET/FORCE_SET/SPEED_SET/STATUS; no writes")
+    demo = commands.add_parser("demo-real", help="Small-motion review demos; simulation unless --real is given")
+    demo.add_argument("mode", choices=("position", "velocity", "cartesian"))
+    add_connection_arguments(demo)
+    demo.add_argument("--duration", type=float, default=6.0)
+    demo.add_argument("--period", type=float, default=0.05, help="Control period in seconds (default 20 Hz)")
+    demo.add_argument("--channels", nargs="+", choices=("pinky", "ring", "middle", "index", "thumb_bend", "thumb_rotation"), default=["index"])
+    demo.add_argument("--amplitude", type=float, default=0.12, help="Maximum excursion from starting pose, rad")
+    demo.add_argument("--rate", type=float, default=0.05, help="Maximum reference speed, rad/s")
+    demo.add_argument("--speed-units", type=int, default=200)
+    demo.add_argument("--force-units", type=int, default=200, help="Native protection threshold; no Newton feedback control")
+    demo.add_argument("--pose-rate", type=float, default=0.2, help="Reference speed for opening/returning to native zero, rad/s")
+    demo.add_argument("--pose-timeout", type=float, default=30.0, help="Maximum seconds for each opening/zero transition")
+    demo.add_argument("--pose-tolerance", type=float, default=0.01, help="Simulation-only arrival tolerance in model radians")
+    demo.add_argument("--pose-tolerance-units", type=int, default=20, help="Real ANGLE_ACT arrival tolerance (default 20 native units, range 1..50)")
+    demo.add_argument("--log", default="auto", metavar="OUTPUT.jsonl")
     return result
 
 
@@ -124,7 +154,13 @@ def main(argv=None):
     if getattr(args, "headless", False) and getattr(args, "record", None):
         os.environ.setdefault("MUJOCO_GL", "osmesa")
     try:
-        if args.command in ("visualize", "demo"):
+        if args.command == "check":
+            from example.real_demos import run_connection_check
+            return run_connection_check(args)
+        elif args.command == "demo-real":
+            from example.real_demos import run_motion_demo
+            run_motion_demo(args)
+        elif args.command in ("visualize", "demo"):
             run_simulation(args)
         elif args.command == "hardware" or args.backend == "modbus":
             run_hardware(args)

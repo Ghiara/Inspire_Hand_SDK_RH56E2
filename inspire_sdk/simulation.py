@@ -91,7 +91,8 @@ class MujocoBackend:
         return HandState(float(self.data.time), self.data.qpos[self.q_addresses].copy(),
                          self.data.qvel[self.v_addresses].copy(), joint_positions, joint_velocities,
                          {f: self.data.site(f"{f}_tip").xpos.copy() for f in FINGERS},
-                         self.contact_forces(), None, "mujoco_qvel", "mujoco_contact_normal_sum")
+                         self.contact_forces(), None, "mujoco_qvel", "mujoco_contact_normal_sum",
+                         position_source="mujoco_qpos")
 
     def stop(self):
         self._ensure_open()

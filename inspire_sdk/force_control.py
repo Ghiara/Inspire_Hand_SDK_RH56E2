@@ -1,11 +1,12 @@
 """Simulation contact-force feedback and native hardware force-threshold control."""
 import numpy as np
 from .model import FINGERS, vector, positive
+from .general_control import GeneralController
 
 
-class ForceController:
+class ForceController(GeneralController):
     def __init__(self, backend):
-        self.backend = backend
+        super().__init__(backend)
         self.targets_n = np.zeros(5)
         self.enabled = np.zeros(5, dtype=bool)
         self.reference_rad = None
@@ -48,6 +49,8 @@ class ForceController:
             raise NotImplementedError("Native force units are available only on Modbus hardware")
         self.backend.set_force_limits(values)
 
-    def stop(self):
-        self.backend.stop()
+    def _reset_control_state(self):
+        self.targets_n[:] = 0
+        self.enabled[:] = False
+        self.filtered_n[:] = 0
         self.reference_rad = None

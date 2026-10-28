@@ -25,9 +25,12 @@ class RegisterMap:
     angle_actual: int = 1546
     force_actual: int = 1582
     error: int = 1606
+    status: int = 1612
 
 
 class ModbusTcpBackend:
+    native_position_feedback = True
+
     def __init__(self, host, port=6000, device_id=None, side="right", timeout_s=1.0,
                  registers=None, client=None):
         if not host:
@@ -35,8 +38,10 @@ class ModbusTcpBackend:
         if not isinstance(port, int) or not 1 <= port <= 65535:
             raise ValueError("port must be 1..65535")
         self.device_id = (1 if side == "right" else 2) if device_id is None else device_id
-        if not isinstance(self.device_id, int) or not 1 <= self.device_id <= 247:
-            raise ValueError("device_id must be 1..247")
+        # The RH56E2 TCP manual specifies 0xFF, unlike RTU's 1..247 range.
+        # Retain the legacy per-side defaults for existing installations.
+        if not isinstance(self.device_id, int) or not 1 <= self.device_id <= 255:
+            raise ValueError("device_id must be 1..255 (255 is the documented TCP identifier)")
         self.description = HandModel(side)
         self.kinematics = Kinematics(self.description)
         self.registers = registers or RegisterMap()
@@ -46,6 +51,7 @@ class ModbusTcpBackend:
         self._last_sample = None
         self._speed_initialized = False
         self._force_initialized = False
+        self.force_limits_units = None
         try:
             if not self.client.connect():
                 raise ModbusError(f"Cannot connect to {host}:{port}")
@@ -119,10 +125,34 @@ class ModbusTcpBackend:
         if np.any(values < 0) or np.any(values > 1000):
             raise ValueError("force_units must be 0..1000")
         self._write(self.registers.force_set, np.rint(values))
+        self.force_limits_units = np.rint(values).astype(int)
         self._force_initialized = True
 
+    def read_motion_diagnostics(self):
+        """Read command/limit/status registers without writing or changing limits.
+
+        Capture this BEFORE a hold request overwrites ANGLE_SET. These reads are
+        not atomic. Firmware may not expose every register: retain each read
+        error independently, rather than guessing values or hiding the failure.
+        STATUS codes are left raw because interpretations depend on firmware.
+        """
+        snapshot = {"read_only": True, "timestamp_s": time.monotonic(), "read_errors": {}}
+        for name, address in (("angle_set", self.registers.angle_set),
+                              ("force_set", self.registers.force_set),
+                              ("speed_set", self.registers.speed_set),
+                              ("status_codes", self.registers.status)):
+            try:
+                values = self._read(address, 3 if name == "status_codes" else 6)
+                snapshot[name] = ([byte for word in values for byte in (word & 255, word >> 8)]
+                                  if name == "status_codes" else [int(value) for value in values])
+            except (RuntimeError, ValueError, OSError) as exc:
+                snapshot[name] = None
+                snapshot["read_errors"][name] = str(exc)
+        return snapshot
+
     def read_state(self):
-        positions = self.description.from_registers(self._read(self.registers.angle_actual, 6))
+        angles = np.asarray(self._read(self.registers.angle_actual, 6), dtype=np.int32)
+        positions = self.description.from_registers(angles)
         raw = np.asarray(self._read(self.registers.force_actual, 6), dtype=np.int32)
         raw = np.where(raw >= 32768, raw - 65536, raw)
         timestamp = time.monotonic()
@@ -143,7 +173,8 @@ class ModbusTcpBackend:
             joint_velocities[name] = joint_velocities[parent] * multiplier
         return HandState(timestamp, positions, velocities, joint_positions, joint_velocities,
                          self.kinematics.forward(positions), None, raw, source, "native_force_register_uncalibrated",
-                         self.read_errors())
+                         self.read_errors(), raw_angles=angles.copy(),
+                         position_source="model_estimate_from_angle_feedback")
 
     def advance(self, duration_s):
         if self.closed:

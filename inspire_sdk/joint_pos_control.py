@@ -1,12 +1,10 @@
 """Position commands for the six physical actuators, in radians."""
 import numpy as np
 from .model import CHANNELS, ACTIVE_JOINTS
+from .general_control import GeneralController
 
 
-class JointPositionController:
-    def __init__(self, backend):
-        self.backend = backend
-
+class JointPositionController(GeneralController):
     def set_targets(self, positions_rad):
         positions = self.backend.description.positions(positions_rad)
         self.backend.set_positions(positions)
