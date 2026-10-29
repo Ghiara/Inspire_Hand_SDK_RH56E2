@@ -15,6 +15,21 @@
         <mesh filename="converted/left/base.obj" scale="1 1 1" />
       </geometry>
     </collision>
+    <visual name="wrist_rs485_adapter">
+      <origin xyz="-0.025 0.025 -0.0355" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <mesh filename="converted/left/wrist_rs485_adapter.obj" scale="1 1 1" />
+      </geometry>
+      <material name="wrist_adapter">
+        <color rgba="0.32 0.36 0.42 1" />
+      </material>
+    </visual>
+    <collision name="wrist_rs485_adapter">
+      <origin xyz="-0.025 0.025 -0.0355" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <mesh filename="converted/left/wrist_rs485_adapter.obj" scale="1 1 1" />
+      </geometry>
+    </collision>
   </link>
   <link name="palm_force_sensor">
     <inertial>

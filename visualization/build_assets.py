@@ -16,6 +16,29 @@ ASSETS = ROOT / "assets"
 ACTIVE = ("pinky_joint", "ring_joint", "middle_joint", "index_joint", "thumb_joint2", "thumb_joint1")
 
 
+def add_wrist_adapter(urdf, converted):
+    """Attach the same physical adapter to either hand, within hand_base."""
+    # GLB's scene transform already converts CAD millimetres to metres.
+    mesh = trimesh.load(ASSETS / "adapters/Wrist_RS485_Adapter.glb", force="scene").to_geometry()
+    destination = converted / "wrist_rs485_adapter.obj"
+    destination.write_text(mesh.export(file_type="obj", include_texture=False).rstrip() + "\n")
+    base = urdf.find("link[@name='hand_base']")
+    for kind in ("visual", "collision"):
+        element = ET.SubElement(base, kind, name="wrist_rs485_adapter")
+        # CAD cylinder axis is +Y, centred at X=Z=25 mm. Rotate it to +Z.
+        # Radial screw axes at CAD Y=35.5 mm then coincide with wrist Z=0.
+        # The 38 mm spigot occupies Z=-5.5..4.5 mm; its shoulder has a
+        # 0.5 mm clearance below the wrist lip at Z=-5 mm.
+        ET.SubElement(element, "origin", xyz="-0.025 0.025 -0.0355",
+                      rpy=f"{np.pi / 2} 0 0")
+        geometry = ET.SubElement(element, "geometry")
+        ET.SubElement(geometry, "mesh", filename=destination.relative_to(ASSETS).as_posix(),
+                      scale="1 1 1")
+        if kind == "visual":
+            material = ET.SubElement(element, "material", name="wrist_adapter")
+            ET.SubElement(material, "color", rgba="0.32 0.36 0.42 1")
+
+
 def origin(element):
     node = element.find("origin")
     if node is None:
@@ -66,6 +89,8 @@ def build(side):
             converted_meshes[key] = destination.relative_to(ASSETS).as_posix()
         mesh.set("filename", converted_meshes[key])
         mesh.set("scale", "1 1 1")
+    # Multiple geometries in one link give a rigid attachment without a joint.
+    add_wrist_adapter(urdf, converted)
     ET.indent(urdf)
     ET.ElementTree(urdf).write(ASSETS / f"rh56e2_{side}.urdf", encoding="unicode")
     scene = ET.Element("mujoco", model=f"rh56e2_{side}")
@@ -85,7 +110,7 @@ def build(side):
         ET.SubElement(asset, "mesh", name=name, file=path)
     world = ET.SubElement(scene, "worldbody")
     ET.SubElement(world, "light", pos="0 -0.5 0.5", dir="0 1 -1", diffuse="0.9 0.9 0.9")
-    ET.SubElement(world, "geom", name="floor", type="plane", size="1 1 0.01", pos="0 0 -0.025",
+    ET.SubElement(world, "geom", name="floor", type="plane", size="1 1 0.01", pos="0 0 -0.0455",
                   contype="2", conaffinity="1", rgba="0.15 0.18 0.23 1")
     links = {l.attrib["name"]: l for l in urdf.findall("link")}
     joints = urdf.findall("joint")
@@ -114,7 +139,7 @@ def build(side):
             if mesh is None:
                 continue
             color = v.find("material/color")
-            ET.SubElement(body, "geom", name=f"{name}_{i}", type="mesh", mesh=mesh_names[mesh.attrib["filename"]],
+            ET.SubElement(body, "geom", name=v.attrib.get("name", f"{name}_{i}"), type="mesh", mesh=mesh_names[mesh.attrib["filename"]],
                           rgba=color.attrib["rgba"] if color is not None else "0.75 0.78 0.83 1", **origin(v))
         for child_joint in children.get(name, []):
             add_link(child_joint.find("child").attrib["link"], body, child_joint)

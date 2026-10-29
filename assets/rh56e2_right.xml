@@ -35,13 +35,15 @@
     <mesh name="mesh_23" file="converted/right/thumb2.obj" />
     <mesh name="mesh_24" file="converted/right/thumb3.obj" />
     <mesh name="mesh_25" file="converted/right/thumb4.obj" />
+    <mesh name="mesh_26" file="converted/right/wrist_rs485_adapter.obj" />
   </asset>
   <worldbody>
     <light pos="0 -0.5 0.5" dir="0 1 -1" diffuse="0.9 0.9 0.9" />
-    <geom name="floor" type="plane" size="1 1 0.01" pos="0 0 -0.025" contype="2" conaffinity="1" rgba="0.15 0.18 0.23 1" />
+    <geom name="floor" type="plane" size="1 1 0.01" pos="0 0 -0.0455" contype="2" conaffinity="1" rgba="0.15 0.18 0.23 1" />
     <body name="hand_base">
       <inertial pos="4.56066702604653E-05 -0.003106244650993 0.0366752784828355" mass="0.62266" fullinertia="0.000238088630601122 0.00028210406583092 0.000154836898082308 -1.16726665812887e-06 5.77609124558337E-07 1.55368683899448e-05" />
       <geom name="hand_base_0" type="mesh" mesh="mesh_0" rgba="0.75 0.78 0.83 1" />
+      <geom name="wrist_rs485_adapter" type="mesh" mesh="mesh_26" rgba="0.32 0.36 0.42 1" pos="-0.025 0.025 -0.0355" quat="0.7071067811865476 0.7071067811865475 0.0 0.0" />
       <body name="palm_force_sensor" pos="-0.00036819 0.012296 0.0841" quat="-2.5973434669646147e-06 -2.597353007557415e-06 -0.7071080798547033 -0.707105482506466">
         <inertial pos="0.000120426871221421 0.000717269582936034 -0.0006928935004962" mass="0.001" fullinertia="1.792409847502E-07 5.01925280756008E-07 6.80058307355101E-07 3.5297874278755e-10 -2.06007907879908E-10 -4.23310809567535e-10" />
         <geom name="palm_force_sensor_0" type="mesh" mesh="mesh_11" rgba="0.411764705882353 0.411764705882353 0.411764705882353 1" />

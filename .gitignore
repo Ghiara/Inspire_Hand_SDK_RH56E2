@@ -5,3 +5,17 @@ __pycache__/
 *.pyc
 logs/
 .DS_Store
+
+# Temporary files and editor backups
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# Intermediate wrappers created by visualization/build_assets.py
+/assets/.right.xacro
+/assets/.left.xacro
+
+# Keep assets/**/*.obj: these are runtime meshes referenced by URDF/MJCF.
